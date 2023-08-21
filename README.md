@@ -2,6 +2,8 @@ Static analysis tool to detect the lowest cpu/fpu that will execute a dos binary
 
 Also, it tries to determine which video modes are set via int 10h. 
 
+Recursive search of directories and zip files is supported.
+
 Requires radare2 on the path.
 
 
