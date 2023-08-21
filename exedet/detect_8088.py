@@ -298,6 +298,7 @@ def get_video_modes(exe_path: Path) -> set[int]:
 def detect_main(file_name: Annotated[Path, typer.Argument(dir_okay=True, exists=True)],
                 output_format: OutputFormat = typer.Option(OutputFormat.CSV, case_sensitive=False),
                 output_file: Optional[Path] = None) -> None:
+    """Detect the instruction set, floating point unit and video modes of a DOS binary."""
     output_fd: TextIO
     if output_file is not None:
         output_fd = open(output_file, 'w')
