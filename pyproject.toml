@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "exedet"
+version = "0.1.0"
+description = ""
+authors = ["jbs <joshua.shaffer@icmrl.net>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+typer = {extras = ["all"], version = "^0.9.0"}
+pydantic = {extras = ["all"], version = "^2.2.1"}
+r2pipe = "^1.8.0"
+
+
+[tool.poetry.group.dev.dependencies]
+blue = "^0.9.1"
+mypy = "^1.5.0"
+pytest = "^7.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
