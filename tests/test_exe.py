@@ -122,7 +122,7 @@ def test_r2pipe_exe():
 
 
 def test_iset():
-    from exedet.detect_8088 import (
+    from exedet.__main__ import (
         get_isa_level,
         InstructionSet,
         FloatingPointUnit,
@@ -134,7 +134,7 @@ def test_iset():
 
 
 def test_isa_386():
-    from exedet.detect_8088 import (
+    from exedet.__main__ import (
         get_isa_level,
         InstructionSet,
         FloatingPointUnit,
@@ -146,33 +146,33 @@ def test_isa_386():
 
 
 def test_doom_graphic():
-    from exedet.detect_8088 import get_video_modes
+    from exedet.__main__ import get_video_modes
 
     ret = get_video_modes(test_data / 'DOOM.EXE')
     print(ret)
 
 
 def test_cga_det():
-    from exedet.detect_8088 import is_cga
+    from exedet.__main__ import is_cga
 
     assert not is_cga(test_data / 'OXYD.EXE')
 
 
 def test_not_set():
-    from exedet.detect_8088 import is_cga
+    from exedet.__main__ import is_cga
 
     assert is_cga(test_data / 'mouse.exe')
 
 
 def test_get_video_modes():
-    from exedet.detect_8088 import get_video_modes
+    from exedet.__main__ import get_video_modes
 
     modes = get_video_modes(test_data / 'OXYD.EXE')
     print(modes)
 
 
 def test_get_video_modes_2():
-    from exedet.detect_8088 import get_video_modes
+    from exedet.__main__ import get_video_modes
 
     modes = get_video_modes(test_data / 'mouse.exe')
     print(modes)

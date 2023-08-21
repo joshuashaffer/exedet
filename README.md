@@ -7,10 +7,16 @@ Requires radare2 on the path.
 
 ```shell
 
-$ python -m exedet.detect_8088 tests
-tests/data/trigger.com;InstructionSet.INTEL_8086;FloatingPointUnit.INTEGER_ONLY;
-tests/data/DOOM.EXE;InstructionSet.INTEL_80386;FloatingPointUnit.INTEL_8087;
-tests/data/mouse.exe;InstructionSet.INTEL_80286;FloatingPointUnit.INTEGER_ONLY;
-tests/data/OXYD.EXE;InstructionSet.INTEL_80286;FloatingPointUnit.INTEL_8087;13
+$ python -m exedet --output-format json  tests/
+{"exe_path":"tests/data/trigger.com","isa":8086,"fpu":0,"video_modes":[]}
+{"exe_path":"tests/data/DOOM.EXE","isa":80386,"fpu":8087,"video_modes":[]}
+{"exe_path":"tests/data/mouse.exe","isa":80286,"fpu":0,"video_modes":[]}
+{"exe_path":"tests/data/OXYD.EXE","isa":80286,"fpu":8087,"video_modes":[13]}
+```
 
+## Installation
+
+Install packages with poetry:
+```shell
+$ poetry install
 ```
