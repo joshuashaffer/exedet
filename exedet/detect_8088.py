@@ -1,14 +1,21 @@
+import sys
 import tempfile
-from enum import Flag, auto
+from enum import Enum, Flag, auto
 from pathlib import Path
-from typing import cast
+from typing import Annotated, Optional, TextIO
 from zipfile import ZipFile
 
 import r2pipe
 import typer
+from pydantic import BaseModel
 
+
+class OutputFormat(str, Enum):
+    CSV = 'csv'
+    JSON = 'json'
 
 class InstructionSet(Flag):
+    """Instruction set architecture level"""
     INTEL_8086 = auto()
     INTEL_80186 = auto()
     INTEL_80286 = auto()
@@ -18,11 +25,25 @@ class InstructionSet(Flag):
         """Return max CPU level of self and other_cpu"""
         if self == other_cpu:
             return self
-        current_val = cast(int, (self | other_cpu).value)
+        current_val = (self | other_cpu).value
         return InstructionSet(current_val & (current_val - 1))
+
+    def processor_as_int(self) -> int:
+        match self:
+            case InstructionSet.INTEL_8086:
+                return 8086
+            case InstructionSet.INTEL_80186:
+                return 80186
+            case InstructionSet.INTEL_80286:
+                return 80286
+            case InstructionSet.INTEL_80386:
+                return 80386
+            case _:
+                raise ValueError(f'Unknown ISA: {self}')
 
 
 class FloatingPointUnit(Flag):
+    """Floating point unit level"""
     INTEGER_ONLY = auto()
     INTEL_8087 = auto()
     INTEL_80187 = auto()
@@ -33,8 +54,38 @@ class FloatingPointUnit(Flag):
         """Return max FPU level of self and other_cpu"""
         if self == other_cpu:
             return self
-        current_val = cast(int, (self | other_cpu).value)
+        current_val = (self | other_cpu).value
         return FloatingPointUnit(current_val & (current_val - 1))
+
+    def processor_as_int(self) -> int:
+        """Return the processor as an integer"""
+        match self:
+            case FloatingPointUnit.INTEGER_ONLY:
+                return 0
+            case FloatingPointUnit.INTEL_8087:
+                return 8087
+            case FloatingPointUnit.INTEL_80187:
+                return 80187
+            case FloatingPointUnit.INTEL_80287:
+                return 80287
+            case FloatingPointUnit.INTEL_80387:
+                return 80387
+            case _:
+                raise ValueError(f'Unknown FPU: {self}')
+
+
+class OutputModel(BaseModel):
+    """Output model for the json output"""
+    exe_path: Path
+    isa: int
+    fpu: int
+    video_modes: set[int]
+
+    class Config:
+        """Pydantic config"""
+        extra = 'forbid'
+        frozen = True
+        validate_assignment = True
 
 
 def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
@@ -139,7 +190,6 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
                     detected_instruction_set = detected_instruction_set.max(InstructionSet.INTEL_80186)
                 case [0xdd, 0xe4] | \
                      [0xdf, 0xe0]:
-                    # 80287
                     # print(f'80287 instruction: {disassembled_instruction}')
                     detected_float_unit = detected_float_unit.max(FloatingPointUnit.INTEL_80287)
                 case [0xd9, *_] | \
@@ -149,7 +199,6 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
                      [0xde, *_] | \
                      [0x9b, *_] | \
                      [0xdf, *_]:
-                    # 8087
                     # print(f'8087 instruction: {disassembled_instruction}')
                     detected_float_unit = detected_float_unit.max(FloatingPointUnit.INTEL_8087)
                 case [0x63, *_] | \
@@ -246,11 +295,25 @@ def get_video_modes(exe_path: Path) -> set[int]:
     return seen_modes
 
 
-def detect_main(file_name: Path) -> None:
-    return detect(file_name)
+def detect_main(file_name: Annotated[Path, typer.Argument(dir_okay=True, exists=True)],
+                output_format: OutputFormat = typer.Option(OutputFormat.CSV, case_sensitive=False),
+                output_file: Optional[Path] = None) -> None:
+    output_fd: TextIO
+    if output_file is not None:
+        output_fd = open(output_file, 'w')
+    else:
+        output_fd = sys.stdout
+
+    detect(file_name, output_format=output_format, output_fd=output_fd)
+
+    if output_fd is not sys.stdout:
+        output_fd.close()
 
 
 def detect(file_name: Path,
+           *,
+           output_format: OutputFormat,
+           output_fd: TextIO,
            current_path: Path = Path(".")) -> None:
     if not file_name.exists():
         print(f'File {file_name} does not exist')
@@ -258,7 +321,7 @@ def detect(file_name: Path,
 
     if file_name.is_dir():
         for file in file_name.iterdir():
-            detect(file, current_path / file_name.name)
+            detect(file, output_format=output_format, output_fd=output_fd, current_path=current_path / file_name.name)
         return
 
     # if it's a zip file search it for exes and com files and run detect on them
@@ -275,7 +338,7 @@ def detect(file_name: Path,
                             with open(temp_file_path, 'wb') as temp_file:
                                 temp_file.write(exe_file.read())
                                 temp_file.flush()
-                                detect(temp_file_path, current_path / file_name.name)
+                                detect(temp_file_path, output_format=output_format, output_fd=output_fd, current_path=current_path / file_name.name)
         return
 
     if suffix_lower not in ['.exe', '.com']:
@@ -287,8 +350,22 @@ def detect(file_name: Path,
     except BrokenPipeError:
         # This happens when r2pipe is not able to open the file
         return
-    print(
-        f'{current_path / file_name.name};{detected_instruction_set};{detected_float_unit};{",".join(map(str, video_modes))}')
+
+    output_data = OutputModel(
+        exe_path=current_path / file_name.name,
+        isa=detected_instruction_set.processor_as_int(),
+        fpu=detected_float_unit.processor_as_int(),
+        video_modes=video_modes
+    )
+
+    match output_format:
+        case OutputFormat.CSV:
+            output_fd.write(
+                f'{output_data.exe_path};{output_data.isa};{output_data.fpu};{",".join(map(str,output_data.video_modes))}\n')
+        case OutputFormat.JSON:
+            json_data = output_data.model_dump_json()
+            output_fd.write(json_data + '\n')
+    output_fd.flush()
 
 
 if __name__ == '__main__':
