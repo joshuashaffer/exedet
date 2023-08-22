@@ -14,8 +14,10 @@ class OutputFormat(str, Enum):
     CSV = 'csv'
     JSON = 'json'
 
+
 class InstructionSet(Flag):
     """Instruction set architecture level"""
+
     INTEL_8086 = auto()
     INTEL_80186 = auto()
     INTEL_80286 = auto()
@@ -44,6 +46,7 @@ class InstructionSet(Flag):
 
 class FloatingPointUnit(Flag):
     """Floating point unit level"""
+
     INTEGER_ONLY = auto()
     INTEL_8087 = auto()
     INTEL_80187 = auto()
@@ -76,6 +79,7 @@ class FloatingPointUnit(Flag):
 
 class OutputModel(BaseModel):
     """Output model for the json output"""
+
     exe_path: Path
     isa: int
     fpu: int
@@ -83,6 +87,7 @@ class OutputModel(BaseModel):
 
     class Config:
         """Pydantic config"""
+
         extra = 'forbid'
         frozen = True
         validate_assignment = True
@@ -99,6 +104,7 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
     functions = r2.cmdj('aflj')
     detected_instruction_set = InstructionSet.INTEL_8086
     detected_float_unit = FloatingPointUnit.INTEGER_ONLY
+    # fmt: off
     for function in functions:
         offset = function.get('offset', -1)
         if offset == -1:
@@ -212,7 +218,7 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
                     # 80286
                     # print(f'80286 instruction: {disassembled_instruction}')
                     detected_instruction_set = detected_instruction_set.max(InstructionSet.INTEL_80286)
-
+    # fmt: on
     return detected_instruction_set, detected_float_unit
 
 
@@ -288,16 +294,20 @@ def get_video_modes(exe_path: Path) -> set[int]:
                 case [0x30, 0xC0]:
                     # xor al, al
                     last_al = 0
-                case [0xa0, *_]:
+                case [0xA0, *_]:
                     # mov al, [imm16]
                     # likely restoring the video mode
                     last_al = -1
     return seen_modes
 
 
-def detect_main(file_name: Annotated[Path, typer.Argument(dir_okay=True, exists=True)],
-                output_format: OutputFormat = typer.Option(OutputFormat.CSV, case_sensitive=False),
-                output_file: Optional[Path] = None) -> None:
+def detect_main(
+    file_name: Annotated[Path, typer.Argument(dir_okay=True, exists=True)],
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.CSV, case_sensitive=False
+    ),
+    output_file: Optional[Path] = None,
+) -> None:
     """Detect the instruction set, floating point unit and video modes of a DOS binary."""
     output_fd: TextIO
     if output_file is not None:
@@ -311,18 +321,25 @@ def detect_main(file_name: Annotated[Path, typer.Argument(dir_okay=True, exists=
         output_fd.close()
 
 
-def detect(file_name: Path,
-           *,
-           output_format: OutputFormat,
-           output_fd: TextIO,
-           current_path: Path = Path(".")) -> None:
+def detect(
+    file_name: Path,
+    *,
+    output_format: OutputFormat,
+    output_fd: TextIO,
+    current_path: Path = Path('.'),
+) -> None:
     if not file_name.exists():
         print(f'File {file_name} does not exist')
         return
 
     if file_name.is_dir():
         for file in file_name.iterdir():
-            detect(file, output_format=output_format, output_fd=output_fd, current_path=current_path / file_name.name)
+            detect(
+                file,
+                output_format=output_format,
+                output_fd=output_fd,
+                current_path=current_path / file_name.name,
+            )
         return
 
     # if it's a zip file search it for exes and com files and run detect on them
@@ -333,20 +350,31 @@ def detect(file_name: Path,
                 temp_dir_path = Path(temp_dir)
                 for zip_info in zip_file.infolist():
                     zip_info_filename = zip_info.filename.lower()
-                    if zip_info_filename.endswith('.exe') or zip_info_filename.endswith('.com'):
+                    if zip_info_filename.endswith(
+                        '.exe'
+                    ) or zip_info_filename.endswith('.com'):
                         with zip_file.open(zip_info.filename) as exe_file:
-                            temp_file_path = temp_dir_path / Path(zip_info_filename).name
+                            temp_file_path = (
+                                temp_dir_path / Path(zip_info_filename).name
+                            )
                             with open(temp_file_path, 'wb') as temp_file:
                                 temp_file.write(exe_file.read())
                                 temp_file.flush()
-                                detect(temp_file_path, output_format=output_format, output_fd=output_fd, current_path=current_path / file_name.name)
+                                detect(
+                                    temp_file_path,
+                                    output_format=output_format,
+                                    output_fd=output_fd,
+                                    current_path=current_path / file_name.name,
+                                )
         return
 
     if suffix_lower not in ['.exe', '.com']:
         return
 
     try:
-        detected_instruction_set, detected_float_unit = get_isa_level(file_name)
+        detected_instruction_set, detected_float_unit = get_isa_level(
+            file_name
+        )
         video_modes = get_video_modes(file_name)
     except BrokenPipeError:
         # This happens when r2pipe is not able to open the file
@@ -356,13 +384,14 @@ def detect(file_name: Path,
         exe_path=current_path / file_name.name,
         isa=detected_instruction_set.processor_as_int(),
         fpu=detected_float_unit.processor_as_int(),
-        video_modes=video_modes
+        video_modes=video_modes,
     )
 
     match output_format:
         case OutputFormat.CSV:
             output_fd.write(
-                f'{output_data.exe_path};{output_data.isa};{output_data.fpu};{",".join(map(str,output_data.video_modes))}\n')
+                f'{output_data.exe_path};{output_data.isa};{output_data.fpu};{",".join(map(str, output_data.video_modes))}\n'
+            )
         case OutputFormat.JSON:
             json_data = output_data.model_dump_json()
             output_fd.write(json_data + '\n')
