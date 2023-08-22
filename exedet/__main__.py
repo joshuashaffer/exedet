@@ -1,3 +1,4 @@
+import logging
 import sys
 import tempfile
 from enum import Enum, Flag, auto
@@ -119,26 +120,17 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
             instruction_tuple = tuple(instruction_bytes)
             match instruction_tuple:
                 # 386 only instructions
-                case [0x0f, 0xa3, *_] | \
-                     [0x0f, 0x07, *_] | \
+                case [0x0f, 0x07, *_] | \
+                     [0x0f, 0x10, *_] | \
+                     [0x0f, 0x11, *_] | \
+                     [0x0f, 0x12, *_] | \
+                     [0x0f, 0x13, *_] | \
                      [0x0f, 0x20, *_] | \
                      [0x0f, 0x21, *_] | \
                      [0x0f, 0x22, *_] | \
                      [0x0f, 0x23, *_] | \
                      [0x0f, 0x24, *_] | \
                      [0x0f, 0x26, *_] | \
-                     [0x0f, 0xb3, *_] | \
-                     [0x0f, 0xa4, *_] | \
-                     [0x0f, 0xa5, *_] | \
-                     [0x0f, 0xa0, *_] | \
-                     [0x0f, 0xa1, *_] | \
-                     [0x0f, 0xa8, *_] | \
-                     [0x0f, 0xa9, *_] | \
-                     [0x0f, 0xaf, *_] | \
-                     [0x0f, 0xac, *_] | \
-                     [0x0f, 0xad, *_] | \
-                     [0x0f, 0xbe, *_] | \
-                     [0x0f, 0xbf, *_] | \
                      [0x0f, 0x90, *_] | \
                      [0x0f, 0x91, *_] | \
                      [0x0f, 0x92, *_] | \
@@ -155,17 +147,27 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
                      [0x0f, 0x9d, *_] | \
                      [0x0f, 0x9e, *_] | \
                      [0x0f, 0x9f, *_] | \
-                     [0x0f, 0x10, *_] | \
-                     [0x0f, 0x11, *_] | \
-                     [0x0f, 0x12, *_] | \
-                     [0x0f, 0x13, *_] | \
+                     [0x0f, 0xa0, *_] | \
+                     [0x0f, 0xa1, *_] | \
+                     [0x0f, 0xa3, *_] | \
+                     [0x0f, 0xa4, *_] | \
+                     [0x0f, 0xa5, *_] | \
                      [0x0f, 0xA6, *_] | \
                      [0x0f, 0xa7, *_] | \
-                     [0xf1] | \
-                     [0x0f, 0xba, *_]:
+                     [0x0f, 0xa8, *_] | \
+                     [0x0f, 0xa9, *_] | \
+                     [0x0f, 0xac, *_] | \
+                     [0x0f, 0xad, *_] | \
+                     [0x0f, 0xaf, *_] | \
+                     [0x0f, 0xb3, *_] | \
+                     [0x0f, 0xba, *_] | \
+                     [0x0f, 0xbe, *_] | \
+                     [0x0f, 0xbf, *_] | \
+                     [0xf1]:
                     # 80386
                     # print(f'80386 instruction: {disassembled_instruction}')
                     detected_instruction_set = detected_instruction_set.max(InstructionSet.INTEL_80386)
+                    
                 case [0xdd, 0xe0, *_] | \
                      [0xdd, 0xe8, *_] | \
                      [0xda, 0xe9, *_] | \
@@ -176,48 +178,237 @@ def get_isa_level(exe_path: Path) -> tuple[InstructionSet, FloatingPointUnit]:
                     # print(f'80387 instruction: {disassembled_instruction}')
                     detected_float_unit = detected_float_unit.max(FloatingPointUnit.INTEL_80387)
 
-                case [0x62, *_] | \
-                     [0xc8, *_] | \
-                     [0xc6, *_] | \
+                case [0x60, *_] | \
+                     [0x61, *_] | \
+                     [0x62, *_] | \
+                     [0x68, *_] | \
+                     [0x69, *_] | \
+                     [0x6a, *_] | \
+                     [0x6b, *_] | \
                      [0x6d, *_] | \
-                     [0xc9, *_] | \
                      [0x6e, *_] | \
                      [0x6f, *_] | \
-                     [0x61, *_] | \
-                     [0x60, *_] | \
-                     [0x6a, *_] | \
-                     [0x68, *_] | \
-                     [0x6b, *_] | \
-                     [0x69, *_] | \
                      [0xc0, *_] | \
-                     [0xc1, *_]:
+                     [0xc1, *_] | \
+                     [0xc6, *_] | \
+                     [0xc8, *_] | \
+                     [0xc9, *_]:
                     # 80186
                     # print(f'80186 instruction: {disassembled_instruction}')
                     detected_instruction_set = detected_instruction_set.max(InstructionSet.INTEL_80186)
+                    
                 case [0xdd, 0xe4] | \
                      [0xdf, 0xe0]:
                     # print(f'80287 instruction: {disassembled_instruction}')
                     detected_float_unit = detected_float_unit.max(FloatingPointUnit.INTEL_80287)
-                case [0xd9, *_] | \
+                    
+                case [0x9b, *_] | \
+                     [0xd8, *_] | \
+                     [0xd9, *_] | \
                      [0xdb, *_] | \
                      [0xdc, *_] | \
                      [0xdd, *_] | \
                      [0xde, *_] | \
-                     [0x9b, *_] | \
                      [0xdf, *_]:
                     # print(f'8087 instruction: {disassembled_instruction}')
                     detected_float_unit = detected_float_unit.max(FloatingPointUnit.INTEL_8087)
-                case [0x63, *_] | \
+                    
+                case [0x0f, 0x00, *_] | \
                      [0x0f, 0x01, *_] | \
-                     [0x0f, 0x06, *_] | \
-                     [0x0f, 0x00, *_] | \
                      [0x0f, 0x02, *_] | \
+                     [0x0f, 0x03, *_] | \
                      [0x0f, 0x05, *_] | \
-                     [0xf1, 0x0f, 0x04, *_] | \
-                     [0x0f, 0x03, *_]:
+                     [0x0f, 0x06, *_] | \
+                     [0x63, *_] | \
+                     [0xf1, 0x0f, 0x04, *_]:
                     # 80286
                     # print(f'80286 instruction: {disassembled_instruction}')
                     detected_instruction_set = detected_instruction_set.max(InstructionSet.INTEL_80286)
+                    
+                case [0x00, *_] | \
+                     [0x01, *_] | \
+                     [0x02, *_] | \
+                     [0x03, *_] | \
+                     [0x04, *_] | \
+                     [0x05, *_] | \
+                     [0x06, *_] | \
+                     [0x07, *_] | \
+                     [0x0E, *_] | \
+                     [0x0F, *_] | \
+                     [0x10, *_] | \
+                     [0x11, *_] | \
+                     [0x12, *_] | \
+                     [0x13, *_] | \
+                     [0x15, *_] | \
+                     [0x17, *_] | \
+                     [0x18, *_] | \
+                     [0x19, *_] | \
+                     [0x1A, *_] | \
+                     [0x1B, *_] | \
+                     [0x1C, *_] | \
+                     [0x1D, *_] | \
+                     [0x1E, *_] | \
+                     [0x1F, *_] | \
+                     [0x20, *_] | \
+                     [0x21, *_] | \
+                     [0x22, *_] | \
+                     [0x23, *_] | \
+                     [0x24, *_] | \
+                     [0x25, *_] | \
+                     [0x28, *_] | \
+                     [0x29, *_] | \
+                     [0x2A, *_] | \
+                     [0x2B, *_] | \
+                     [0x2C, *_] | \
+                     [0x2D, *_] | \
+                     [0x30, *_] | \
+                     [0x31, *_] | \
+                     [0x32, *_] | \
+                     [0x33, *_] | \
+                     [0x34, *_] | \
+                     [0x35, *_] | \
+                     [0x37, *_] | \
+                     [0x38, *_] | \
+                     [0x39, *_] | \
+                     [0x3A, *_] | \
+                     [0x3B, *_] | \
+                     [0x3C, *_] | \
+                     [0x3D, *_] | \
+                     [0x40, *_] | \
+                     [0x41, *_] | \
+                     [0x42, *_] | \
+                     [0x43, *_] | \
+                     [0x44, *_] | \
+                     [0x45, *_] | \
+                     [0x46, *_] | \
+                     [0x47, *_] | \
+                     [0x48, *_] | \
+                     [0x49, *_] | \
+                     [0x4A, *_] | \
+                     [0x4B, *_] | \
+                     [0x4C, *_] | \
+                     [0x4D, *_] | \
+                     [0x4E, *_] | \
+                     [0x4F, *_] | \
+                     [0x50, *_] | \
+                     [0x51, *_] | \
+                     [0x52, *_] | \
+                     [0x53, *_] | \
+                     [0x54, *_] | \
+                     [0x55, *_] | \
+                     [0x56, *_] | \
+                     [0x57, *_] | \
+                     [0x58, *_] | \
+                     [0x59, *_] | \
+                     [0x5A, *_] | \
+                     [0x5B, *_] | \
+                     [0x5C, *_] | \
+                     [0x5D, *_] | \
+                     [0x5E, *_] | \
+                     [0x5F, *_] | \
+                     [0x70, *_] | \
+                     [0x71, *_] | \
+                     [0x72, *_] | \
+                     [0x73, *_] | \
+                     [0x74, *_] | \
+                     [0x75, *_] | \
+                     [0x76, *_] | \
+                     [0x77, *_] | \
+                     [0x78, *_] | \
+                     [0x79, *_] | \
+                     [0x7A, *_] | \
+                     [0x7B, *_] | \
+                     [0x7C, *_] | \
+                     [0x7D, *_] | \
+                     [0x7E, *_] | \
+                     [0x7F, *_] | \
+                     [0x80, *_] | \
+                     [0x81, *_] | \
+                     [0x84, *_] | \
+                     [0x85, *_] | \
+                     [0x86, *_] | \
+                     [0x87, *_] | \
+                     [0x8C, *_] | \
+                     [0x8D, *_] | \
+                     [0x8E, *_] | \
+                     [0x90] | \
+                     [0x91, *_] | \
+                     [0x92, *_] | \
+                     [0x93, *_] | \
+                     [0x94, *_] | \
+                     [0x95, *_] | \
+                     [0x96, *_] | \
+                     [0x97, *_] | \
+                     [0x98, *_] | \
+                     [0x99, *_] | \
+                     [0x9A, 0xe8, 0xff, *_] | \
+                     [0x9C, *_] | \
+                     [0x9F, *_] | \
+                     [0x9A, *_] | \
+                     [0xA0, *_] | \
+                     [0xA1, *_] | \
+                     [0xA2, *_] | \
+                     [0xA3, *_] | \
+                     [0xA4, *_] | \
+                     [0xA5, *_] | \
+                     [0xA6, *_] | \
+                     [0xA7, *_] | \
+                     [0xA8, *_] | \
+                     [0xA9, *_] | \
+                     [0xAC, *_] | \
+                     [0xAD, *_] | \
+                     [0xAE, *_] | \
+                     [0xAF, *_] | \
+                     [0xC0, *_] | \
+                     [0xC1, *_] | \
+                     [0xC2, *_] | \
+                     [0xC3, *_] | \
+                     [0xC4, *_] | \
+                     [0xC5, *_] | \
+                     [0xC9, *_] | \
+                     [0xCA, *_] | \
+                     [0xCB, *_] | \
+                     [0xCD, *_] | \
+                     [0xD0, *_] | \
+                     [0xD1, *_] | \
+                     [0xD2, *_] | \
+                     [0xD3, *_] | \
+                     [0xD5, *_] | \
+                     [0xD7, *_] | \
+                     [0xE0, *_] | \
+                     [0xE1, *_] | \
+                     [0xE2, *_] | \
+                     [0xE3, *_] | \
+                     [0xE4, *_] | \
+                     [0xE5, *_] | \
+                     [0xE6, *_] | \
+                     [0xE7, *_] | \
+                     [0xE8, *_] | \
+                     [0xE9, *_] | \
+                     [0xEA, *_] | \
+                     [0xEB, *_] | \
+                     [0xEC, *_] | \
+                     [0xED, *_] | \
+                     [0xEE, *_] | \
+                     [0xEF, *_] | \
+                     [0xF0, *_] | \
+                     [0xF2, *_] | \
+                     [0xF3, *_] | \
+                     [0xF6, *_] | \
+                     [0xF7, *_] | \
+                     [0xF8, *_] | \
+                     [0xF9, *_] | \
+                     [0xFB, *_] | \
+                     [0xFD, *_] | \
+                     [0xFE, *_] | \
+                     [0xFF, *_]:
+                    # 8086, So that unknown instructions are handled by the default case
+                    ...
+
+                case _:
+                    # Unknown instruction
+                    # print(f'Unknown instruction: {disassembled_instruction}  {instruction_bytes.hex()}')
+                    ...
     # fmt: on
     return detected_instruction_set, detected_float_unit
 
@@ -268,6 +459,9 @@ def get_video_modes(exe_path: Path) -> set[int]:
                     # int 10h
                     if last_ah != 0:
                         continue
+                    logging.debug(
+                        f'Found int 10h with AH={last_ah} and AL={last_al} at function at 0x{offset:X}'
+                    )
                     if last_al >= 0:
                         seen_modes.add(last_al)
                 case [0xB4, *rest]:
@@ -390,11 +584,11 @@ def detect(
     match output_format:
         case OutputFormat.CSV:
             output_fd.write(
-                f'{output_data.exe_path};{output_data.isa};{output_data.fpu};{",".join(map(str, output_data.video_modes))}\n'
+                f'{output_data.exe_path};{output_data.isa};{output_data.fpu};{",".join(map(str, output_data.video_modes))}'
             )
         case OutputFormat.JSON:
-            json_data = output_data.model_dump_json()
-            output_fd.write(json_data + '\n')
+            output_fd.write(output_data.model_dump_json())
+    output_fd.write('\n')
     output_fd.flush()
 
 
